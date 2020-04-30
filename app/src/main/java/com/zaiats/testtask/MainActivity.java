@@ -1,103 +1,67 @@
 package com.zaiats.testtask;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.os.Bundle;
 import android.view.View;
 import android.webkit.WebView;
 import android.widget.TextView;
-import android.widget.Toast;
 
-import com.zaiats.testtask.api.ApiFactory;
-import com.zaiats.testtask.api.ApiService;
-import com.zaiats.testtask.pojo.Answer;
-import com.zaiats.testtask.pojo.Response;
+import com.zaiats.testtask.network.JsonAnswer;
 
-import java.util.LinkedList;
-import java.util.List;
+import java.util.ArrayList;
 
-import io.reactivex.android.schedulers.AndroidSchedulers;
-import io.reactivex.disposables.CompositeDisposable;
-import io.reactivex.disposables.Disposable;
-import io.reactivex.functions.Consumer;
-import io.reactivex.schedulers.Schedulers;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements ResponseView {
 
-    private final LinkedList<Integer> responseList = new LinkedList<>();
+    private  ArrayList<Integer> responseList = new ArrayList<>();
+    private int countOfResponse = 0;
 
-    private Disposable disposable;
-    private CompositeDisposable compositeDisposable;
+    JsonAnswer answer = new JsonAnswer(MainActivity.this);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        if (savedInstanceState != null) {
+            countOfResponse = savedInstanceState.getInt("counter");
+            responseList = savedInstanceState.getIntegerArrayList("list");
+            answer.getAnswers(responseList.get(countOfResponse));
+        } else {
+            answer.getResponse();
+            answer.getAnswers(1);
+        }
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-        getResponse();
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putInt("counter", countOfResponse);
+        ArrayList<Integer> integers = new ArrayList<>();
+        integers.addAll(responseList);
+        outState.putIntegerArrayList("list", integers);
     }
 
-    public void getResponse() {
-        ApiFactory apiFactory = ApiFactory.getInstance();
-        ApiService apiService = apiFactory.getApiService();
-        compositeDisposable = new CompositeDisposable();
-        disposable = apiService.getRecords()
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new Consumer<List<Response>>() {
-                    @Override
-                    public void accept(List<Response> responses) throws Exception {
-                        for (Response response : responses) {
-                            responseList.add(response.getId());
-                        }
-                        getAnswers(responseList.getFirst());
-                    }
-                }, new Consumer<Throwable>() {
-                    @Override
-                    public void accept(Throwable throwable) throws Exception {
-                        Toast.makeText(MainActivity.this, "Unable to get data\n" + throwable.getMessage(), Toast.LENGTH_SHORT).show();
-                    }
-                });
-        compositeDisposable.add(disposable);
-    }
-
-    private void getAnswers(int pageId) {
-        ApiFactory apiFactory = ApiFactory.getInstance();
-        ApiService apiService = apiFactory.getApiService();
-        disposable = apiService.getAnswers(pageId)
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new Consumer<Answer>() {
-                    @Override
-                    public void accept(Answer answer) throws Exception {
-                        if (answer.getType().equals("text")) {
-                            getTextView(answer.getContents());
-                        } else if (answer.getType().equals("webview")) {
-                            getWebView(answer.getUrl());
-                        }
-                    }
-                }, new Consumer<Throwable>() {
-                    @Override
-                    public void accept(Throwable throwable) throws Exception {
-                        Toast.makeText(MainActivity.this, "Error getting type\n" + throwable.getMessage(), Toast.LENGTH_SHORT).show();
-                    }
-                });
-        compositeDisposable.add(disposable);
+    public void onClickNext(View view) {
+        countOfResponse++;
+        if (countOfResponse < responseList.size()) {
+            answer.getAnswers(responseList.get(countOfResponse));
+        } else {
+            answer.getAnswers(responseList.get(0));
+            countOfResponse = 0;
+        }
     }
 
     @Override
     protected void onDestroy() {
-        if (compositeDisposable != null) {
-            compositeDisposable.dispose();
-        }
+    answer.disposeDisposable();
         super.onDestroy();
     }
 
-    private void getTextView(String text) {
+
+    @Override
+    public void getTextView(String text) {
         WebView webView = findViewById(R.id.webView);
         webView.setVisibility(View.GONE);
         TextView textViewContent = findViewById(R.id.textViewContent);
@@ -105,7 +69,8 @@ public class MainActivity extends AppCompatActivity {
         textViewContent.setVisibility(View.VISIBLE);
     }
 
-    private void getWebView(String url) {
+    @Override
+    public void getWebView(String url) {
         TextView textViewContent = findViewById(R.id.textViewContent);
         textViewContent.setVisibility(View.GONE);
         WebView webView = findViewById(R.id.webView);
@@ -114,10 +79,9 @@ public class MainActivity extends AppCompatActivity {
         webView.setVisibility(View.VISIBLE);
     }
 
-    public void onClickNext(View view) {
-        /*
-        *not done
-        */
+    @Override
+    public void getResponseList(ArrayList<Integer> list) {
+        responseList.addAll(list);
     }
 
 }
